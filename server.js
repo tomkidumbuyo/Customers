@@ -1,65 +1,77 @@
-var mysql = require('mysql');
-var express = require('express');
-var session = require('express-session');
-var bodyParser = require('body-parser');
-var path = require('path');
-
-var connection = mysql.createConnection({
-	host     : 'localhost',
-	user     : 'root',
-	password : '',
-	database : 'customer'
-});
-
+var express = require('express')
 var app = express()
-
-app.use(session({
-	secret: 'secret',
-	resave: true,
-	saveUninitialized: true
+var passport = require('passport')
+var session = require('express-session')
+var bodyParser = require('body-parser')
+var env = require('dotenv').config()
+var exphbs = require('express-handlebars')
+ 
+ 
+//For BodyParser
+app.use(bodyParser.urlencoded({
+    extended: true
 }));
-
-app.use(bodyParser.urlencoded({extended : true}));
 app.use(bodyParser.json());
-
-
-app.get('/', function(request, response) {
-	response.sendFile(path.join(__dirname + '/login.html'));
+ 
+ 
+// For Passport
+app.use(session({
+    secret: 'keyboard cat',
+    resave: true,
+    saveUninitialized: true
+})); // session secret
+app.use(passport.initialize());
+app.use(passport.session()); // persistent login sessions
+ 
+ 
+//For Handlebars
+app.set('views', './app/views')
+app.engine('hbs', exphbs({
+    extname: '.hbs'
+}));
+app.set('view engine', '.hbs');
+ 
+ 
+ 
+app.get('/', function(req, res) {
+ 
+    res.send('Welcome to Passport with Sequelize');
+ 
 });
-
-app.post('/auth', function(request, response) {
-	var username = request.body.username;
-	var password = request.body.password;
-	if (username && password) {
-		connection.query('SELECT * FROM users WHERE username = ? AND password = ?', [username, password], function(error, results, fields) {
-			if (results.length > 0) {
-				request.session.loggedin = true;
-				request.session.username = username;
-				response.redirect('/home');
-			} else {
-				response.send('Incorrect Username and/or Password!');
-			}			
-			response.end();
-		});
-	} else {
-		response.send('Please enter Username and Password!');
-		response.end();
-	}
+ 
+//Models
+var models = require("./app/models");
+ 
+//Routes
+ 
+var authRoute = require('./app/routes/auth.js')(app,passport);
+ 
+ 
+//load passport strategies
+ 
+require('./app/config/passport/passport.js')(passport, models.user);
+ 
+ 
+//Sync Database
+ 
+models.sequelize.sync().then(function() {
+ 
+    console.log('Nice! Database looks fine')
+ 
+ 
+}).catch(function(err) {
+ 
+    console.log(err, "Something went wrong with the Database Update!")
+ 
 });
-
-
-app.get('/home', function(request, response) {
-	if (request.session.loggedin) {
-		response.send('Welcome back, ' + request.session.username + '!');
-	} else {
-		response.send('Please login to view this page!');
-	}
-	response.end();
+ 
+ 
+app.listen(5000, function(err) {
+ 
+    if (!err)
+ 
+        console.log("Site is live");
+         
+    else console.log(err)
+ 
 });
-
-var server = app.listen(3000,()=> {
-    var host = server.address().address;
-    var port = server.address().port;
-	console.log('running at http://' + host + ':' + port)
-	
-})
